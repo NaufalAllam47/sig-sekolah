@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Models\Sekolah;
+use Illuminate\Support\Facades\Gate;
 
 class SekolahController extends Controller
 {
-    //
      public function index(Request $request) 
     { 
         $sekolahs = Sekolah::query() 
@@ -35,20 +35,31 @@ class SekolahController extends Controller
     { 
         Sekolah::create($request->validate($this->rules())); 
   
-        return redirect()->route('admin.sekolah.index') 
+        return redirect()->route('dinas.sekolah.index') 
             ->with('success', 'Data sekolah berhasil ditambahkan.'); 
     } 
   
     public function edit(Sekolah $sekolah) 
     { 
+        Gate::authorize('update', $sekolah);
+
         return view('admin.sekolah.edit', compact('sekolah')); 
     } 
   
     public function update(Request $request, Sekolah $sekolah) 
     { 
-        $sekolah->update($request->validate($this->rules($sekolah->id))); 
-  
-        return redirect()->route('admin.sekolah.index') 
+        Gate::authorize('update', $sekolah);
+
+        $data = $request->validate($this->rules($sekolah->id));
+
+        // NPSN adalah identitas resmi: tidak boleh diubah oleh sekolah 
+        if ($request->user()->isSekolah()) {
+            unset($data['npsn']);
+        }
+
+        $sekolah->update($data);
+
+        return $this->kembali ($request) 
             ->with('success', 'Data sekolah berhasil diperbarui.');
      } 
   
@@ -56,10 +67,17 @@ class SekolahController extends Controller
     { 
         $sekolah->delete(); 
   
-        return redirect()->route('admin.sekolah.index') 
+        return redirect()->route('dinas.sekolah.index') 
             ->with('success', 'Data sekolah berhasil dihapus.'); 
     } 
-  
+    
+    private function kembali(Request $request)
+    {
+        return $request->user()->isDinas()
+            ? redirect()->route('dinas.sekolah.index')
+            : redirect()->route('dashboard');
+    }
+    
     private function rules(?int $id = null): array 
     { 
         return [ 
